@@ -1,0 +1,8 @@
+# local tooling state — not part of the site
+.mycelium/
+graft/
+codedb.snapshot
+.bank
+dist/
+node_modules/
+.DS_Store

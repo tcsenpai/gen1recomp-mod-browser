@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>gen1recomp Mods — Browse & Download</title>
+    <meta
+      name="description"
+      content="Browse, search, and download community mods for the gen1recomp engine (native LÖVE2D recreation of Pokémon Red). Self-updating index."
+    />
+    <meta name="color-scheme" content="light" />
+    <meta property="og:title" content="gen1recomp Mods" />
+    <meta property="og:description" content="Browse, search, and download community mods for gen1recomp." />
+    <meta property="og:type" content="website" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' fill='%23f8f3f8'/%3E%3Crect x='2' y='2' width='12' height='5' fill='%23b3181c'/%3E%3Crect x='2' y='9' width='12' height='5' fill='%23181010'/%3E%3Crect x='2' y='7' width='12' height='2' fill='%23181010'/%3E%3Crect x='6' y='6' width='4' height='4' fill='%23f8f3f8'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="assets/css-pokemon-gameboy.css" />
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <div class="wrapper">
+      <header class="site-head">
+        <h1>gen1recomp Mod Index</h1>
+        <span class="tagline">Browse, search, and download community mods.</span>
+      </header>
+
+      <nav class="framed neutral">
+        <ul class="site-nav">
+          <li><a class="button" href="https://bryanthaboi.github.io/gen1recomp-mod-index/">Submit a mod</a></li>
+          <li><a class="button" href="https://github.com/bryanthaboi/gen1recomp">Engine</a></li>
+          <li><a class="button" href="https://github.com/bryanthaboi/gen1recomp/wiki">Modding wiki</a></li>
+          <li><a class="button" href="https://bryanthaboi.github.io/gen1recomp-mod-index/data/index.json">index.json</a></li>
+        </ul>
+      </nav>
+
+      <!-- ---------------------------------------------------------- toolbar -->
+      <section class="framed neutral">
+        <div class="toolbar">
+          <div class="field">
+            <label class="label" for="search">Search</label>
+            <input
+              id="search"
+              type="search"
+              placeholder="mod, author, or tag…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+          <div class="field">
+            <label class="label" for="sort">Sort</label>
+            <select id="sort">
+              <option value="title">Name (A–Z)</option>
+              <option value="updated">Recently updated</option>
+              <option value="author">Author (A–Z)</option>
+            </select>
+          </div>
+        </div>
+
+        <ul class="filters" id="category-filters" aria-label="Filter by category"></ul>
+
+        <ul class="filters" id="flag-filters" aria-label="Flags">
+          <li><button class="chip" id="flag-thumb" aria-pressed="false">Has thumbnail</button></li>
+          <li><button class="chip" id="flag-experimental" aria-pressed="false">Experimental</button></li>
+          <li><button class="chip" id="flag-hide-experimental" aria-pressed="false">Hide experimental</button></li>
+          <li><button class="chip danger-chip" id="clear-filters" hidden>Clear</button></li>
+        </ul>
+      </section>
+
+      <!-- ---------------------------------------------------------- results -->
+      <section>
+        <p class="message result-line">
+          <span id="result-count">Loading…</span>
+          <span class="feed-stamp" id="feed-stamp"></span>
+        </p>
+        <div class="mod-grid" id="grid" aria-live="polite"></div>
+        <p class="message empty" id="empty" hidden><span>No mods</span> match your filters.</p>
+      </section>
+
+      <footer class="framed neutral" style="margin-top: 2em">
+        <p class="message">
+          <span>Self-updating.</span> Data is fetched live from the
+          <a href="https://github.com/bryanthaboi/gen1recomp-mod-index">community mod index</a>
+          feed, rebuilt nightly. Listing is not vetting — read a mod's source before you enable it.
+        </p>
+      </footer>
+    </div>
+
+    <!-- --------------------------------------------------------- detail modal -->
+    <dialog class="detail" id="detail">
+      <div class="framed neutral detail-inner">
+        <div class="detail-head">
+          <h2 id="detail-title-head">Mod</h2>
+          <button class="button" id="detail-close" autofocus>Close</button>
+        </div>
+        <div id="detail-body"></div>
+      </div>
+    </dialog>
+
+    <script src="assets/app.js"></script>
+  </body>
+</html>

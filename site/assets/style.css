@@ -1,0 +1,290 @@
+/* Browse UI layered on css-pokemon-gameboy — reuses its fonts, .framed borders,
+   .button arrows and palette so the browse page reads as one sheet with the
+   upstream submission helper. Palette vars mirror that page's site.css. */
+
+:root {
+  --neutral: #f8f3f8;
+  --contrast: #181010;
+  --primary: #48a058;
+  --secondary: #f0b088;
+  --danger: #b3181c;
+  --dim: rgba(24, 16, 16, 0.6);
+  --gb-screen: #9bbc0f;
+  --gb-screen-dark: #0f380f;
+}
+
+/* Layout rules set display on elements that also toggle [hidden]; a class beats
+   the UA sheet, so pin it once here. */
+[hidden] { display: none !important; }
+
+body {
+  padding: 2em 1.5em 4em;
+  background: var(--neutral);
+  font-size: 1.05em;
+  line-height: 1.7;
+}
+
+@media screen and (max-width: 768px) {
+  body { padding: 1em 0.75em 3em; font-size: 0.85em; }
+}
+
+.wrapper { max-width: 1180px; }
+
+/* ---------------------------------------------------------------- header */
+.site-head { text-align: center; margin-bottom: 1em; }
+.site-head h1 {
+  font-family: 'Pokemon GB', 'Press Start 2P', monospace;
+  font-size: clamp(0.85rem, 3.2vw, 1.4rem);
+  line-height: 1.6;
+}
+.site-head .tagline { display: block; margin-top: 0.75em; color: var(--dim); }
+
+.site-nav {
+  display: flex; flex-wrap: wrap; gap: 0.5em 1.25em;
+  justify-content: center; align-items: center;
+  margin: 0; padding: 0.75em 1em; list-style: none;
+}
+.site-nav li { margin: 0; }
+
+/* ---------------------------------------------------------------- toolbar */
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75em 1em;
+  align-items: end;
+}
+@media screen and (max-width: 768px) { .toolbar { grid-template-columns: 1fr; } }
+
+.field { display: flex; flex-direction: column; gap: 0.35em; }
+.label {
+  font-family: 'Pokemon GB', 'Press Start 2P', monospace;
+  font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.04em;
+}
+#search, #sort {
+  font-family: inherit;
+  font-size: 1em;
+  padding: 0.5em 0.6em;
+  background: var(--neutral);
+  border: 2px solid var(--contrast);
+  color: var(--contrast);
+}
+#search:focus, #sort:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* filter chips (category + flags) */
+.filters {
+  display: flex; flex-wrap: wrap; gap: 0.4em;
+  margin: 0.9em 0 0; padding: 0; list-style: none;
+}
+.filters li { margin: 0; }
+.chip {
+  font-family: inherit;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  padding: 0.3em 0.6em;
+  cursor: pointer;
+  background: transparent;
+  border: 2px solid var(--contrast);
+  color: var(--contrast);
+}
+.chip[aria-pressed='true'] { background: var(--contrast); color: var(--neutral); }
+.chip .count { margin-left: 0.4em; opacity: 0.65; }
+.chip::before { content: none !important; } /* framework hover arrow crowds a chip row */
+.danger-chip { border-color: var(--danger); color: var(--danger); }
+.danger-chip:hover { background: var(--danger); color: var(--neutral); }
+
+/* ---------------------------------------------------------------- results line */
+.result-line {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1em; flex-wrap: wrap; margin: 1.25em 0 0;
+}
+.result-line #result-count { font-weight: bold; }
+.feed-stamp { color: var(--dim); font-size: 0.85em; }
+
+/* ---------------------------------------------------------------- cards */
+.mod-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1em;
+  margin-top: 1em;
+}
+
+.mod-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  background: var(--neutral);
+  border: 3px solid var(--contrast);
+  box-shadow: 4px 4px 0 var(--contrast);
+  cursor: pointer;
+  transition: transform 0.08s steps(2), box-shadow 0.08s steps(2);
+}
+.mod-card:hover, .mod-card:focus-visible {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--primary);
+  outline: none;
+}
+
+.card-thumb {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  border-bottom: 3px solid var(--contrast);
+  background: var(--gb-screen);
+  display: block;
+}
+.card-thumb.placeholder {
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Pokemon GB', 'Press Start 2P', monospace;
+  font-size: 2rem;
+  color: var(--gb-screen-dark);
+  background:
+    repeating-linear-gradient(45deg, var(--gb-screen) 0 10px,
+      color-mix(in srgb, var(--gb-screen) 82%, var(--gb-screen-dark)) 10px 20px);
+}
+
+.card-body { padding: 0.7em 0.8em; display: flex; flex-direction: column; gap: 0.45em; flex: 1; }
+.card-title {
+  margin: 0;
+  font-family: 'Pokemon GB', 'Press Start 2P', monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.card-author { color: var(--dim); font-size: 0.85em; }
+.card-summary {
+  margin: 0; font-size: 0.9em; flex: 1;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.badges { display: flex; flex-wrap: wrap; gap: 0.3em; }
+.badge {
+  font-size: 0.68em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.15em 0.4em;
+  border: 2px solid var(--contrast);
+  background: var(--neutral);
+}
+.badge.cat { border-color: var(--primary); color: var(--primary); }
+.badge.exp { border-color: var(--danger); color: var(--danger); }
+
+.card-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5em;
+  padding: 0.6em 0.8em;
+  border-top: 3px solid var(--contrast);
+}
+.card-version { font-size: 0.82em; color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* download button — reuse .button but keep it green + prevent card click */
+.dl-btn {
+  font-family: inherit;
+  font-size: 0.82em;
+  padding: 0.35em 0.7em;
+  border: 2px solid var(--primary);
+  background: var(--primary);
+  color: var(--neutral);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.dl-btn:hover { background: var(--gb-screen-dark); border-color: var(--gb-screen-dark); text-decoration: none; }
+.dl-btn.disabled {
+  background: transparent; color: var(--dim); border-color: var(--dim);
+  cursor: not-allowed; pointer-events: none;
+}
+
+.empty { text-align: center; margin-top: 2em; }
+
+/* ---------------------------------------------------------------- detail modal */
+.detail {
+  width: min(760px, 94vw);
+  max-height: 90vh;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.detail::backdrop { background: rgba(24, 16, 16, 0.55); }
+.detail-inner { max-height: 90vh; overflow-y: auto; margin: 0; }
+.detail-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1em; margin-bottom: 0.75em;
+}
+.detail-head h2 {
+  font-family: 'Pokemon GB', 'Press Start 2P', monospace;
+  font-size: 0.85rem; line-height: 1.5; margin: 0;
+}
+
+.detail-hero {
+  width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+  image-rendering: pixelated;
+  border: 3px solid var(--contrast);
+  background: var(--gb-screen);
+  margin-bottom: 1em;
+}
+.detail-sub { color: var(--dim); margin: 0 0 1em; }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 0.6em; margin-bottom: 1.2em; }
+.detail-actions .dl-btn { font-size: 0.95em; padding: 0.5em 0.9em; }
+
+.stats { margin-bottom: 1.2em; }
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7em 1em;
+  padding: 0.9em;
+  border: 2px solid var(--contrast);
+  margin-bottom: 1.2em;
+}
+.meta-item .k {
+  font-family: 'Pokemon GB', 'Press Start 2P', monospace;
+  font-size: 0.6rem; text-transform: uppercase; color: var(--dim);
+  margin-bottom: 0.2em;
+}
+.meta-item .v { font-size: 0.92em; word-break: break-word; }
+.meta-item .v code {
+  background: var(--gb-screen);
+  padding: 0.05em 0.3em; font-size: 0.9em;
+}
+
+.desc-md { line-height: 1.7; }
+.desc-md h1, .desc-md h2, .desc-md h3 {
+  font-family: 'Pokemon GB', 'Press Start 2P', monospace;
+  line-height: 1.5; margin: 1.2em 0 0.5em;
+}
+.desc-md h1 { font-size: 0.85rem; } .desc-md h2 { font-size: 0.78rem; } .desc-md h3 { font-size: 0.72rem; }
+.desc-md p { margin: 0.6em 0; }
+.desc-md ul, .desc-md ol { padding-left: 1.4em; }
+.desc-md code { background: var(--gb-screen); padding: 0.1em 0.35em; font-size: 0.9em; }
+.desc-md pre {
+  background: var(--gb-screen-dark); color: var(--gb-screen);
+  padding: 0.8em; overflow-x: auto; border: 2px solid var(--contrast);
+}
+.desc-md pre code { background: none; padding: 0; color: inherit; }
+.desc-md img { max-width: 100%; image-rendering: pixelated; border: 2px solid var(--contrast); }
+.desc-md a { word-break: break-word; }
+.desc-md blockquote {
+  margin: 0.6em 0; padding-left: 0.9em;
+  border-left: 3px solid var(--secondary); color: var(--dim);
+}
+.desc-loading { color: var(--dim); }
+
+/* ---------------------------------------------------------------- states */
+.banner {
+  padding: 0.8em 1em;
+  border: 3px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--neutral));
+  margin: 1em 0;
+}
+
+/* skeleton loaders in the DMG palette */
+.mod-card.skeleton { cursor: default; pointer-events: none; }
+.mod-card.skeleton .card-thumb,
+.mod-card.skeleton .card-body > * {
+  background: color-mix(in srgb, var(--contrast) 12%, var(--neutral));
+  color: transparent;
+  min-height: 0.9em;
+  border: none;
+}
+.mod-card.skeleton .card-thumb { min-height: unset; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.mod-card.skeleton { animation: pulse 1.3s steps(3) infinite; }
