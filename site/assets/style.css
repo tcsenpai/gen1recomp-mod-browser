@@ -96,6 +96,8 @@ body {
 #tag-more[open] .tag-more-toggle { background: var(--contrast); color: var(--neutral); }
 #tag-more #tag-filters-rest { margin-top: 0.5em; }
 
+.card-stars { margin-left: 0.5em; opacity: 0.75; white-space: nowrap; }
+
 .danger-chip { border-color: var(--danger); color: var(--danger); }
 .danger-chip:hover { background: var(--danger); color: var(--neutral); }
 

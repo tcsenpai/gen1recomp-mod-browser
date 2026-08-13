@@ -17,6 +17,8 @@ const state = {
   experimentalOnly: false,
   hideExperimental: false,
   sort: 'title',
+  stars: {},          // "owner/repo" -> star count (or -1 = unknown/failed)
+  starsLoading: false,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -93,9 +95,11 @@ async function load() {
     buildCategoryFilters(data.categories || deriveCategories());
     buildFeaturedTagFilters();
     buildTagFilters();
+    loadStarsCache();
     readHash();
     syncControls();
     render();
+    if (state.sort === 'popularity') ensureStars();
   } catch (err) {
     els.grid.innerHTML = '';
     els.count.textContent = '';
@@ -146,6 +150,7 @@ function filtered() {
     title: (a, b) => (a.title || '').localeCompare(b.title || ''),
     author: (a, b) => (a.author || '').localeCompare(b.author || '') || (a.title || '').localeCompare(b.title || ''),
     updated: (a, b) => publishedTs(b) - publishedTs(a),
+    popularity: (a, b) => starsOf(b) - starsOf(a) || (a.title || '').localeCompare(b.title || ''),
   };
   out.sort(by[state.sort] || by.title);
   return out;
@@ -155,6 +160,73 @@ function publishedTs(m) {
   const t = m.latest && m.latest.published_at;
   const n = t ? Date.parse(t) : NaN;
   return isNaN(n) ? 0 : n;
+}
+
+// ---------------------------------------------------------------- github stars
+// The feed carries no popularity signal, so "Popularity" sorts by GitHub stars.
+// Fetched lazily (only when the user picks that sort), in parallel, cached in
+// localStorage for 6h. Best-effort: unauthenticated GitHub is 60 req/h per IP,
+// so with ~93 repos a visitor can hit the limit — failures resolve to -1
+// (unknown, sorted last) rather than 0, keeping known-star mods ahead.
+
+const STARS_TTL_MS = 6 * 60 * 60 * 1000;
+const STARS_CACHE_KEY = 'gen1recomp-mod-stars';
+
+// -1 sentinel = unknown; distinct from a real 0-star repo.
+function starsOf(m) {
+  const k = m.github;
+  if (!k) return -1;
+  const v = state.stars[k];
+  return typeof v === 'number' ? v : -1;
+}
+
+function loadStarsCache() {
+  try {
+    const raw = localStorage.getItem(STARS_CACHE_KEY);
+    if (!raw) return;
+    const { at, stars } = JSON.parse(raw);
+    if (Date.now() - at < STARS_TTL_MS && stars && typeof stars === 'object') {
+      state.stars = stars;
+    }
+  } catch { /* corrupt/absent cache — ignore */ }
+}
+
+function saveStarsCache() {
+  try {
+    localStorage.setItem(STARS_CACHE_KEY, JSON.stringify({ at: Date.now(), stars: state.stars }));
+  } catch { /* quota/blocked — non-fatal */ }
+}
+
+async function fetchStar(repo) {
+  try {
+    const res = await fetch('https://api.github.com/repos/' + repo, {
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!res.ok) return -1; // 403 rate-limit, 404, etc. → unknown
+    const j = await res.json();
+    return typeof j.stargazers_count === 'number' ? j.stargazers_count : -1;
+  } catch {
+    return -1;
+  }
+}
+
+// Fetch any not-yet-known repos, then re-render so the sort applies. Idempotent
+// and guarded so rapid sort toggles don't stack fetches.
+async function ensureStars() {
+  if (state.starsLoading) return;
+  const missing = [...new Set(
+    state.mods.map((m) => m.github).filter((g) => g && !(g in state.stars))
+  )];
+  if (!missing.length) { render(); return; }
+
+  state.starsLoading = true;
+  els.stamp.textContent = 'Loading stars…';
+  const results = await Promise.all(missing.map(fetchStar));
+  missing.forEach((repo, i) => { state.stars[repo] = results[i]; });
+  saveStarsCache();
+  state.starsLoading = false;
+  els.stamp.textContent = '';
+  if (state.sort === 'popularity') render();
 }
 
 // ---------------------------------------------------------------- rendering
@@ -211,7 +283,9 @@ function card(mod) {
       '<div class="badges">' + cats + expBadge + '</div>' +
     '</div>' +
     '<div class="card-foot">' +
-      '<span class="card-version">' + esc(versionLabel(mod)) + '</span>' +
+      '<span class="card-version">' + esc(versionLabel(mod)) +
+        (starsOf(mod) >= 0 ? ' <span class="card-stars">★ ' + starsOf(mod) + '</span>' : '') +
+      '</span>' +
       dlBtn +
     '</div>';
 
@@ -575,7 +649,11 @@ function readHash() {
 // ---------------------------------------------------------------- wiring
 
 els.search.addEventListener('input', (e) => { state.search = e.target.value; render(); });
-els.sort.addEventListener('change', (e) => { state.sort = e.target.value; render(); });
+els.sort.addEventListener('change', (e) => {
+  state.sort = e.target.value;
+  render();
+  if (state.sort === 'popularity') ensureStars();
+});
 function toggleFlag(btn, key) {
   const on = !chipOn(btn);
   setChip(btn, on);
