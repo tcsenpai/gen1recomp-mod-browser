@@ -12,6 +12,7 @@ const state = {
   mods: [],
   search: '',
   categories: new Set(),
+  tags: new Set(),
   hasThumb: false,
   experimentalOnly: false,
   hideExperimental: false,
@@ -27,6 +28,7 @@ const els = {
   search: $('#search'),
   sort: $('#sort'),
   catFilters: $('#category-filters'),
+  tagFilters: $('#tag-filters'),
   clear: $('#clear-filters'),
   flagThumb: $('#flag-thumb'),
   flagExp: $('#flag-experimental'),
@@ -87,6 +89,7 @@ async function load() {
     state.mods = Array.isArray(data.mods) ? data.mods : [];
     els.stamp.textContent = data.generated_at ? 'Feed updated ' + fmtDate(data.generated_at) : '';
     buildCategoryFilters(data.categories || deriveCategories());
+    buildTagFilters();
     readHash();
     syncControls();
     render();
@@ -120,6 +123,10 @@ function filtered() {
       const cats = m.categories || [];
       // AND semantics feel too strict with 1–4 cats; use OR (any selected).
       if (!cats.some((c) => state.categories.has(c))) return false;
+    }
+    if (state.tags.size) {
+      const tags = m.tags || [];
+      if (!tags.some((t) => state.tags.has(t))) return false;
     }
     if (q) {
       const hay = [
@@ -164,7 +171,7 @@ function render() {
   els.grid.appendChild(frag);
 
   const anyFilter =
-    state.search || state.categories.size || state.hasThumb ||
+    state.search || state.categories.size || state.tags.size || state.hasThumb ||
     state.experimentalOnly || state.hideExperimental;
   els.clear.hidden = !anyFilter;
 
@@ -420,6 +427,32 @@ function buildCategoryFilters(cats) {
   }
 }
 
+function buildTagFilters() {
+  const counts = {};
+  for (const m of state.mods) for (const t of m.tags || []) counts[t] = (counts[t] || 0) + 1;
+  // Tags are freeform (many one-offs); only surface those shared by ≥2 mods.
+  const tags = Object.keys(counts)
+    .filter((t) => counts[t] >= 2)
+    .sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+  els.tagFilters.innerHTML = '';
+  for (const t of tags) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.className = 'chip';
+    btn.value = t;
+    btn.setAttribute('aria-pressed', 'false');
+    btn.innerHTML = '#' + esc(t) + '<span class="count">' + counts[t] + '</span>';
+    btn.addEventListener('click', () => {
+      if (state.tags.has(t)) state.tags.delete(t);
+      else state.tags.add(t);
+      btn.setAttribute('aria-pressed', String(state.tags.has(t)));
+      render();
+    });
+    li.appendChild(btn);
+    els.tagFilters.appendChild(li);
+  }
+}
+
 function syncControls() {
   els.search.value = state.search;
   els.sort.value = state.sort;
@@ -429,6 +462,9 @@ function syncControls() {
   els.catFilters.querySelectorAll('.chip').forEach((btn) => {
     setChip(btn, state.categories.has(btn.value));
   });
+  els.tagFilters.querySelectorAll('.chip').forEach((btn) => {
+    setChip(btn, state.tags.has(btn.value));
+  });
 }
 
 function setChip(btn, on) { btn.setAttribute('aria-pressed', String(!!on)); }
@@ -437,6 +473,7 @@ function chipOn(btn) { return btn.getAttribute('aria-pressed') === 'true'; }
 function clearFilters() {
   state.search = '';
   state.categories.clear();
+  state.tags.clear();
   state.hasThumb = state.experimentalOnly = state.hideExperimental = false;
   syncControls();
   render();
@@ -449,6 +486,7 @@ function hashFilters() {
   const h = {};
   if (state.search) h.q = state.search;
   if (state.categories.size) h.cat = [...state.categories].join(',');
+  if (state.tags.size) h.tag = [...state.tags].join(',');
   if (state.sort !== 'title') h.sort = state.sort;
   if (state.hasThumb) h.thumb = 1;
   if (state.experimentalOnly) h.exp = 1;
@@ -479,6 +517,7 @@ function readHash() {
   state.experimentalOnly = p.has('exp');
   state.hideExperimental = p.has('noexp');
   state.categories = new Set((p.get('cat') || '').split(',').filter(Boolean));
+  state.tags = new Set((p.get('tag') || '').split(',').filter(Boolean));
   const modFolder = p.get('mod');
   if (modFolder) {
     const mod = state.mods.find((m) => m.folder === modFolder);
