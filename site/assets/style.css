@@ -89,6 +89,13 @@ body {
 .chip[aria-pressed='true'] { background: var(--contrast); color: var(--neutral); }
 .chip .count { margin-left: 0.4em; opacity: 0.65; }
 .chip::before { content: none !important; } /* framework hover arrow crowds a chip row */
+/* collapsible "more tags" — the <summary> is styled as a chip */
+#tag-more { margin: 0.4em 0 0; }
+.tag-more-toggle { display: inline-block; list-style: none; user-select: none; }
+.tag-more-toggle::-webkit-details-marker { display: none; }
+#tag-more[open] .tag-more-toggle { background: var(--contrast); color: var(--neutral); }
+#tag-more #tag-filters-rest { margin-top: 0.5em; }
+
 .danger-chip { border-color: var(--danger); color: var(--danger); }
 .danger-chip:hover { background: var(--danger); color: var(--neutral); }
 

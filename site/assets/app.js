@@ -29,6 +29,8 @@ const els = {
   sort: $('#sort'),
   catFilters: $('#category-filters'),
   tagFilters: $('#tag-filters'),
+  tagFiltersRest: $('#tag-filters-rest'),
+  tagMore: $('#tag-more'),
   clear: $('#clear-filters'),
   flagThumb: $('#flag-thumb'),
   flagExp: $('#flag-experimental'),
@@ -89,6 +91,7 @@ async function load() {
     state.mods = Array.isArray(data.mods) ? data.mods : [];
     els.stamp.textContent = data.generated_at ? 'Feed updated ' + fmtDate(data.generated_at) : '';
     buildCategoryFilters(data.categories || deriveCategories());
+    buildFeaturedTagFilters();
     buildTagFilters();
     readHash();
     syncControls();
@@ -427,29 +430,64 @@ function buildCategoryFilters(cats) {
   }
 }
 
-function buildTagFilters() {
+// Tags to surface as pseudo-categories: always shown in the category row and
+// pinned out of the tag cloud, even below the ≥2 threshold. label overrides the
+// chip text; the filter still matches the underlying tag.
+const FEATURED_TAGS = [{ tag: 'gen2', label: 'Gen 2' }];
+
+// One clickable tag chip. Toggles state.tags[t]; `label` overrides display text.
+function tagChip(t, count, label) {
+  const li = document.createElement('li');
+  const btn = document.createElement('button');
+  btn.className = 'chip';
+  btn.value = t;
+  btn.setAttribute('aria-pressed', String(state.tags.has(t)));
+  btn.innerHTML = esc(label || '#' + t) +
+    (count != null ? '<span class="count">' + count + '</span>' : '');
+  btn.addEventListener('click', () => {
+    if (state.tags.has(t)) state.tags.delete(t);
+    else state.tags.add(t);
+    btn.setAttribute('aria-pressed', String(state.tags.has(t)));
+    render();
+  });
+  li.appendChild(btn);
+  return li;
+}
+
+function tagCounts() {
   const counts = {};
   for (const m of state.mods) for (const t of m.tags || []) counts[t] = (counts[t] || 0) + 1;
-  // Tags are freeform (many one-offs); only surface those shared by ≥2 mods.
+  return counts;
+}
+
+// Featured tags rendered into the category row so they read as categories.
+function buildFeaturedTagFilters() {
+  const counts = tagCounts();
+  for (const { tag, label } of FEATURED_TAGS) {
+    if (!counts[tag]) continue; // nothing carries it — don't show a dead chip
+    els.catFilters.appendChild(tagChip(tag, counts[tag], label));
+  }
+}
+
+const TAG_VISIBLE = 6; // top-N tags shown; the rest collapse behind "More tags"
+
+function buildTagFilters() {
+  const counts = tagCounts();
+  const featured = new Set(FEATURED_TAGS.map((f) => f.tag));
+  // Freeform tags: only those shared by ≥2 mods, minus any promoted to featured.
   const tags = Object.keys(counts)
-    .filter((t) => counts[t] >= 2)
+    .filter((t) => counts[t] >= 2 && !featured.has(t))
     .sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+
   els.tagFilters.innerHTML = '';
-  for (const t of tags) {
-    const li = document.createElement('li');
-    const btn = document.createElement('button');
-    btn.className = 'chip';
-    btn.value = t;
-    btn.setAttribute('aria-pressed', 'false');
-    btn.innerHTML = '#' + esc(t) + '<span class="count">' + counts[t] + '</span>';
-    btn.addEventListener('click', () => {
-      if (state.tags.has(t)) state.tags.delete(t);
-      else state.tags.add(t);
-      btn.setAttribute('aria-pressed', String(state.tags.has(t)));
-      render();
-    });
-    li.appendChild(btn);
-    els.tagFilters.appendChild(li);
+  els.tagFiltersRest.innerHTML = '';
+  tags.slice(0, TAG_VISIBLE).forEach((t) => els.tagFilters.appendChild(tagChip(t, counts[t])));
+  const rest = tags.slice(TAG_VISIBLE);
+  rest.forEach((t) => els.tagFiltersRest.appendChild(tagChip(t, counts[t])));
+  els.tagMore.hidden = rest.length === 0;
+  if (rest.length) {
+    els.tagMore.querySelector('summary').innerHTML =
+      'More tags<span class="count">' + rest.length + '</span>';
   }
 }
 
@@ -459,12 +497,21 @@ function syncControls() {
   setChip(els.flagThumb, state.hasThumb);
   setChip(els.flagExp, state.experimentalOnly);
   setChip(els.flagHideExp, state.hideExperimental);
+  // catFilters holds real category chips plus featured-tag chips; key each by
+  // whichever set actually owns its value.
   els.catFilters.querySelectorAll('.chip').forEach((btn) => {
-    setChip(btn, state.categories.has(btn.value));
+    setChip(btn, state.categories.has(btn.value) || state.tags.has(btn.value));
   });
-  els.tagFilters.querySelectorAll('.chip').forEach((btn) => {
-    setChip(btn, state.tags.has(btn.value));
-  });
+  [els.tagFilters, els.tagFiltersRest].forEach((ul) =>
+    ul.querySelectorAll('.chip').forEach((btn) => {
+      setChip(btn, state.tags.has(btn.value));
+    })
+  );
+  // Expand the collapsed tag section if a filter inside it is active (e.g. a
+  // shared URL selected a tag that lives beyond the top 6).
+  const restActive = [...els.tagFiltersRest.querySelectorAll('.chip')]
+    .some((btn) => state.tags.has(btn.value));
+  if (restActive) els.tagMore.open = true;
 }
 
 function setChip(btn, on) { btn.setAttribute('aria-pressed', String(!!on)); }
