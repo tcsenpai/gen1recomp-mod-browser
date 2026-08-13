@@ -1,0 +1,39 @@
+name: Refresh GitHub stars
+
+# The feed carries no popularity signal, so "Popularity" sorts by GitHub stars.
+# Fetching 93 repos live from each visitor's browser blows the unauthenticated
+# 60 req/h limit, so we prefetch here (authenticated: 5000 req/h) into a static
+# site/data/stars.json the browser reads first. Runs nightly and on demand.
+on:
+  schedule:
+    - cron: '17 4 * * *' # 04:17 UTC daily (offset to dodge the top-of-hour rush)
+  workflow_dispatch:
+
+permissions:
+  contents: write # to commit the refreshed stars.json
+
+concurrency:
+  group: stars
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch stars into site/data/stars.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FEED_URL: https://bryanthaboi.github.io/gen1recomp-mod-index/data/index.json
+        run: node .github/scripts/fetch-stars.mjs
+      - name: Commit if changed
+        run: |
+          if [ -n "$(git status --porcelain site/data/stars.json)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add site/data/stars.json
+            git commit -m "chore: refresh GitHub stars [skip ci]"
+            git push
+          else
+            echo "stars.json unchanged"
+          fi

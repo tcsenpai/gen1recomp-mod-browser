@@ -98,6 +98,8 @@ body {
 
 .card-stars { margin-left: 0.5em; opacity: 0.75; white-space: nowrap; }
 
+.load-more-wrap { display: flex; justify-content: center; margin: 1.4em 0 0; }
+
 .danger-chip { border-color: var(--danger); color: var(--danger); }
 .danger-chip:hover { background: var(--danger); color: var(--neutral); }
 

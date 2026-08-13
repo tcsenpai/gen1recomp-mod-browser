@@ -19,12 +19,14 @@ const state = {
   sort: 'title',
   stars: {},          // "owner/repo" -> star count (or -1 = unknown/failed)
   starsLoading: false,
+  page: 1,            // pagination: number of PAGE_SIZE batches currently shown
 };
 
 const $ = (sel) => document.querySelector(sel);
 const els = {
   grid: $('#grid'),
   empty: $('#empty'),
+  loadMore: $('#load-more'),
   count: $('#result-count'),
   stamp: $('#feed-stamp'),
   search: $('#search'),
@@ -171,6 +173,7 @@ function publishedTs(m) {
 
 const STARS_TTL_MS = 6 * 60 * 60 * 1000;
 const STARS_CACHE_KEY = 'gen1recomp-mod-stars';
+const STARS_CONCURRENCY = 5; // max live GitHub requests in flight at once
 
 // -1 sentinel = unknown; distinct from a real 0-star repo.
 function starsOf(m) {
@@ -210,19 +213,59 @@ async function fetchStar(repo) {
   }
 }
 
+// Run async workers over a queue with a concurrency cap, so we never hit
+// GitHub with more than `limit` requests in flight (the API is 60/h per IP
+// unauthenticated — a burst of ~93 would trip it instantly).
+async function runPool(items, worker, limit) {
+  let i = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      await worker(items[idx], idx);
+    }
+  });
+  await Promise.all(runners);
+}
+
+// Prefer the prebuilt data/stars.json (committed nightly by the stars workflow,
+// authenticated, complete). Merged under any cached values; only genuinely
+// unknown repos then fall through to a throttled live fetch.
+async function loadPrebuiltStars() {
+  if (state.starsPrebuiltTried) return;
+  state.starsPrebuiltTried = true;
+  try {
+    const res = await fetch('data/stars.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    const j = await res.json();
+    if (j && j.stars) {
+      // Prebuilt file wins over stale cache for known repos.
+      state.stars = { ...state.stars, ...j.stars };
+      saveStarsCache();
+    }
+  } catch { /* no prebuilt file yet — fall back to live fetch */ }
+}
+
 // Fetch any not-yet-known repos, then re-render so the sort applies. Idempotent
 // and guarded so rapid sort toggles don't stack fetches.
 async function ensureStars() {
   if (state.starsLoading) return;
+  state.starsLoading = true;
+
+  await loadPrebuiltStars();
+
   const missing = [...new Set(
     state.mods.map((m) => m.github).filter((g) => g && !(g in state.stars))
   )];
-  if (!missing.length) { render(); return; }
+  if (!missing.length) {
+    state.starsLoading = false;
+    if (state.sort === 'popularity') render();
+    return;
+  }
 
-  state.starsLoading = true;
   els.stamp.textContent = 'Loading stars…';
-  const results = await Promise.all(missing.map(fetchStar));
-  missing.forEach((repo, i) => { state.stars[repo] = results[i]; });
+  await runPool(missing, async (repo) => {
+    state.stars[repo] = await fetchStar(repo);
+  }, STARS_CONCURRENCY);
   saveStarsCache();
   state.starsLoading = false;
   els.stamp.textContent = '';
@@ -230,6 +273,12 @@ async function ensureStars() {
 }
 
 // ---------------------------------------------------------------- rendering
+
+const PAGE_SIZE = 24; // cards shown per page; "Load more" reveals the next batch
+
+// Any change that alters WHICH mods match (search, sort, filters) resets
+// pagination to the first page; "Load more" is the only thing that grows it.
+function rerender() { state.page = 1; render(); }
 
 function render() {
   const list = filtered();
@@ -241,9 +290,18 @@ function render() {
     ? '<b>' + total + '</b> mods'
     : '<b>' + list.length + '</b> of ' + total + ' mods';
 
+  const shown = Math.min(list.length, state.page * PAGE_SIZE);
   const frag = document.createDocumentFragment();
-  for (const mod of list) frag.appendChild(card(mod));
+  for (let i = 0; i < shown; i++) frag.appendChild(card(list[i]));
   els.grid.appendChild(frag);
+
+  // "Load more" — only render pages the user has revealed, so a 90-card list
+  // stays cheap and (for popularity) we fetch far fewer stars up front.
+  const more = list.length - shown;
+  els.loadMore.hidden = more <= 0;
+  if (more > 0) {
+    els.loadMore.textContent = 'Load more (' + more + ')';
+  }
 
   const anyFilter =
     state.search || state.categories.size || state.tags.size || state.hasThumb ||
@@ -497,7 +555,7 @@ function buildCategoryFilters(cats) {
       if (state.categories.has(c)) state.categories.delete(c);
       else state.categories.add(c);
       btn.setAttribute('aria-pressed', String(state.categories.has(c)));
-      render();
+      rerender();
     });
     li.appendChild(btn);
     els.catFilters.appendChild(li);
@@ -522,7 +580,7 @@ function tagChip(t, count, label) {
     if (state.tags.has(t)) state.tags.delete(t);
     else state.tags.add(t);
     btn.setAttribute('aria-pressed', String(state.tags.has(t)));
-    render();
+    rerender();
   });
   li.appendChild(btn);
   return li;
@@ -597,7 +655,7 @@ function clearFilters() {
   state.tags.clear();
   state.hasThumb = state.experimentalOnly = state.hideExperimental = false;
   syncControls();
-  render();
+  rerender();
 }
 
 // ---------------------------------------------------------------- hash sync
@@ -648,17 +706,18 @@ function readHash() {
 
 // ---------------------------------------------------------------- wiring
 
-els.search.addEventListener('input', (e) => { state.search = e.target.value; render(); });
+els.search.addEventListener('input', (e) => { state.search = e.target.value; rerender(); });
 els.sort.addEventListener('change', (e) => {
   state.sort = e.target.value;
-  render();
+  rerender();
   if (state.sort === 'popularity') ensureStars();
 });
+els.loadMore.addEventListener('click', () => { state.page += 1; render(); });
 function toggleFlag(btn, key) {
   const on = !chipOn(btn);
   setChip(btn, on);
   state[key] = on;
-  render();
+  rerender();
 }
 els.flagThumb.addEventListener('click', () => toggleFlag(els.flagThumb, 'hasThumb'));
 els.flagExp.addEventListener('click', () => toggleFlag(els.flagExp, 'experimentalOnly'));
